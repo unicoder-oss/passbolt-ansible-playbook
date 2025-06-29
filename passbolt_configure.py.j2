@@ -1,0 +1,143 @@
+import requests
+import urllib3
+import pgpy
+
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+use_TLS = 1
+server_address = "{{ nginx_domain }}"
+server_URL = ("https://" if use_TLS else "http://") + server_address
+MySQL_hostname = "localhost"
+MySQL_port = 3306
+MySQL_username = "{{ mysql_username }}"
+MySQL_password = "{{ mysql_password }}"
+MySQL_database = "{{ mysql_dbname }}"
+GPG_name = "{{ GPG_name }}"
+GPG_mail = "{{ GPG_mail }}"
+SMTP_sender_name = "{{ SMTP_sender_name }}"
+SMTP_sender_mail = "{{ SMTP_sender_mail }}"
+SMTP_host = "{{ SMTP_host }}"
+SMTP_use_TLS = {{ SMTP_use_TLS }}
+SMTP_port = 587
+SMTP_username = "{{ SMTP_sender_mail }}"
+SMTP_password = "{{ SMTP_password }}"
+SMTP_client_public_IP = "{{ SMTP_client }}"
+account_first_name = "{{ account_first_name }}"
+account_last_name = "{{ account_last_name }}"
+account_mail = "{{ account_mail }}"
+
+# Session creation, getting cookies and server info
+session = requests.Session()
+response = session.get(f"{server_URL}/install/system_check", verify=False)
+cookies = session.cookies
+if "Nice one! Your environment is ready for passbolt." not in response.text:
+    print("Error: Bad environment")
+    exit(-1)
+passbolt_cookie = None
+csrfToken = None
+for cookie in cookies:
+    match cookie.name:
+        case "passbolt_session":
+            passbolt_cookie = cookie.value
+        case "csrfToken":
+            csrfToken = cookie.value
+if not passbolt_cookie or not csrfToken:
+    print("Unable to get cookies")
+    exit(-1)
+
+# Sending information about database
+data = {
+    "_csrfToken": csrfToken,
+    "driver": "Cake\\Database\\Driver\\Mysql",
+    "host": MySQL_hostname,
+    "port": MySQL_port,
+    "username": MySQL_username,
+    "password": MySQL_password,
+    "database": MySQL_database,
+    "schema": "public"
+}
+
+response = session.post(f"{server_URL}/install/database", verify=False, data=data)
+if response.status_code == 403:
+    print("Unable to provide database info")
+    exit(-1)
+
+# Generating and sending the PGP-key
+primary_key = pgpy.PGPKey.new(pgpy.pgp.PubKeyAlgorithm.RSAEncryptOrSign, 3072)
+uid = pgpy.PGPUID.new(GPG_name, email=GPG_mail)
+primary_key.add_uid(uid,
+                    usage={pgpy.pgp.KeyFlags.Certify, pgpy.pgp.KeyFlags.Sign},
+                    hashes=[pgpy.pgp.HashAlgorithm.SHA256],
+                    ciphers=[pgpy.pgp.SymmetricKeyAlgorithm.AES256],
+                    compression=[pgpy.pgp.CompressionAlgorithm.ZLIB],
+                    key_expires=None)
+
+subkey = pgpy.PGPKey.new(pgpy.pgp.PubKeyAlgorithm.RSAEncryptOrSign, 3072)
+primary_key.add_subkey(subkey, usage={pgpy.pgp.KeyFlags.EncryptCommunications,
+                                      pgpy.pgp.KeyFlags.EncryptStorage})
+
+fingerprint = str(primary_key.fingerprint)
+public_key = str(primary_key.pubkey)
+private_key = str(primary_key)
+
+data = {
+    "_csrfToken": csrfToken,
+    "public_key_armored": public_key,
+    "private_key_armored": private_key,
+    "fingerprint": fingerprint,
+    "name": GPG_name,
+    "email": GPG_mail 
+}
+
+response = session.post(f"{server_URL}/install/gpg_key", verify=False, data=data)
+if response.status_code == 403:
+    print("Unable to provide PGP-key")
+    exit(-1)
+
+# Sending server options
+data = {
+    "_csrfToken": csrfToken,
+    "full_base_url": server_URL,
+    "force_ssl": use_TLS
+}
+
+response = session.post(f"{server_URL}/install/options", verify=False, data=data)
+if response.status_code == 403:
+    print("Unable to provide server options")
+    exit(-1)
+
+# Sending SMTP parameters
+data = {
+    "_csrfToken": csrfToken,
+    "sender_name": SMTP_sender_name,
+    "sender_email": SMTP_sender_mail,
+    "host": SMTP_host,
+    "tls": SMTP_use_TLS,
+    "port": SMTP_port,
+    "authentication_method": "username_and_password",
+    "username": SMTP_username,
+    "password": SMTP_password,
+    "client": SMTP_client_public_IP,
+    "email_test_to": None
+}
+
+response = session.post(f"{server_URL}/install/email", verify=False, data=data)
+if response.status_code == 403:
+    print("Unable to provide SMTP options")
+    exit(-1)
+
+# Sending first account information
+data = {
+    "_csrfToken": csrfToken,
+    "first_name": account_first_name,
+    "last_name": account_last_name,
+    "username": account_mail
+}
+
+response = session.post(f"{server_URL}/install/account_creation", verify=False, data=data)
+if response.status_code == 403:
+    print("Unable to provide first account data")
+    exit(-1)
+
+# Apply changes
+response = session.get(f"{server_URL}/install/installation/do_install.json", verify=False)

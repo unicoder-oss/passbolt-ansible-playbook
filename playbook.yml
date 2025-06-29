@@ -1,0 +1,62 @@
+---
+- name: Deploy Passbolt
+  hosts: managed
+  vars_files:
+    - secrets.yml
+  tasks:
+    - name: Create self-signed certs
+      become: true
+      ansible.builtin.command:
+        cmd: sudo openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout {{ SSL_key_path }} -out {{ SSL_cert_path }} -subj "/CN={{ nginx_domain }}"
+    - name: Download pre-install script
+      ansible.builtin.command:
+        cmd: wget "https://download.passbolt.com/ce/installer/passbolt-repo-setup.ce.sh"
+    - name: Download SHA512SUM for pre-install script
+      ansible.builtin.command:
+        cmd: wget "https://github.com/passbolt/passbolt-dep-scripts/releases/latest/download/passbolt-ce-SHA512SUM.txt"
+    - name: Execute pre-install script
+      become: true
+      ansible.builtin.shell:
+        cmd: sha512sum -c passbolt-ce-SHA512SUM.txt && sudo bash ./passbolt-repo-setup.ce.sh || echo "Bad checksum. Aborting" && rm -f passbolt-repo-setup.ce.sh
+    - name: Create script for pass variables from template
+      ansible.builtin.template:
+        src: variables.sh.j2
+        dest: variables.sh
+        mode: '0755'
+    - name: Execute variables script
+      become: true
+      ansible.builtin.command:
+        cmd: ./variables.sh
+    - name: Remove pre-install stuff
+      ansible.builtin.shell:
+        cmd: rm variables.sh passbolt-*
+    - name: Install Passbolt
+      become: true
+      ansible.builtin.shell:
+        cmd: sudo DEBIAN_FRONTEND=noninteractive apt -y install passbolt-ce-server
+    - name: Install python3-full
+      become: true
+      ansible.builtin.apt:
+        package:
+          - python3-full
+    - name: Create virtual environment, install pgpy and requests
+      ansible.builtin.shell:
+        cmd: python3 -m venv temp_passbolt && temp_passbolt/bin/pip install pgpy requests
+    - name: Create post-install script from template
+      ansible.builtin.template:
+        src: passbolt_configure.py.j2
+        dest: passbolt_configure.py
+        mode: '0755'
+    - name: Execute post-install script
+      ansible.builtin.command:
+        cmd: temp_passbolt/bin/python3 passbolt_configure.py
+    - name: Remove Python environment
+      ansible.builtin.command:
+        cmd: rm -r temp_passbolt
+    - name: Remove post-install script
+      ansible.builtin.command:
+        cmd: rm passbolt_configure.py
+    - name: Clear cache (fix emails)
+      become: true
+      ansible.builtin.command:
+        cmd: sudo -u www-data /usr/share/php/passbolt/bin/cake cache clear_all

@@ -1,0 +1,8 @@
+[control]
+localhost ansible_connection=local
+
+[managed]
+127.0.0.1
+
+[managed:vars]
+ansible_user=user
