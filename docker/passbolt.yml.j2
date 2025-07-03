@@ -1,0 +1,56 @@
+services:
+  db:
+    image: mariadb:10.11
+    restart: unless-stopped
+    environment:
+      MYSQL_RANDOM_ROOT_PASSWORD: "true"
+      MYSQL_DATABASE: {{ mysql_dbname }}
+      MYSQL_USER: {{ mysql_username }}
+      MYSQL_PASSWORD: {{ mysql_password }}
+    volumes:
+      - database_volume:/var/lib/mysql
+
+  passbolt:
+    image: passbolt/passbolt:latest-ce-non-root
+    restart: unless-stopped
+    depends_on:
+      - db
+    environment:
+      APP_FULL_BASE_URL: https://{{ nginx_domain }}
+      DATASOURCES_DEFAULT_HOST: db
+      DATASOURCES_DEFAULT_USERNAME: {{ mysql_username }}
+      DATASOURCES_DEFAULT_PASSWORD: {{ mysql_password }}
+      DATASOURCES_DEFAULT_DATABASE: {{ mysql_dbname }}
+      PASSBOLT_KEY_NAME: {{ GPG_name }}
+      PASSBOLT_KEY_EMAIL: {{ GPG_mail }}
+      EMAIL_DEFAULT_FROM_NAME: {{ SMTP_sender_name }}
+      EMAIL_DEFAULT_FROM: {{ SMTP_sender_mail }}
+      EMAIL_TRANSPORT_DEFAULT_HOST: {{ SMTP_host }}
+      EMAIL_TRANSPORT_DEFAULT_PORT: {{ SMTP_port }}
+      EMAIL_TRANSPORT_DEFAULT_USERNAME: {{ SMTP_sender_mail }}
+      EMAIL_TRANSPORT_DEFAULT_PASSWORD: {{ SMTP_password }}
+      EMAIL_TRANSPORT_DEFAULT_TLS: 1
+      EMAIL_TRANSPORT_DEFAULT_CLIENT: {{ SMTP_client }}
+      PASSBOLT_SSL_FORCE: true
+    volumes:
+      - gpg_volume:/etc/passbolt/gpg
+      - jwt_volume:/etc/passbolt/jwt
+      - ./certs/cert.pem:/etc/ssl/certs/certificate.crt:ro
+      - ./certs/key.pem:/etc/ssl/certs/certificate.key:ro
+    command:
+      [
+        "/usr/bin/wait-for.sh",
+        "-t",
+        "15",
+        "db:3306",
+        "--",
+        "/docker-entrypoint.sh",
+      ]
+    ports:
+      - 80:8080
+      - 443:4433
+
+volumes:
+  database_volume:
+  gpg_volume:
+  jwt_volume:

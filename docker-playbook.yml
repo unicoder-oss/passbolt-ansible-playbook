@@ -1,0 +1,52 @@
+---
+- name: Install Docker container with Passbolt
+  hosts: managed
+  vars_files:
+    - secrets.yml
+  tasks:
+    - name: Execute Docker install script
+      become: true
+      ansible.builtin.script:
+        cmd: scripts/docker-install.sh
+    - name: Execute rootless Docker activate script
+      ansible.builtin.script:
+        cmd: scripts/docker-rootless.sh
+    - name: Activate linger for user
+      become: true
+      ansible.builtin.command:
+        cmd: loginctl enable-linger {{ ansible_user }}
+    - name: Create docker-compose.yml from template
+      ansible.builtin.template:
+        src: docker/passbolt.yml.j2
+        dest: docker-compose-passbolt.yml
+    - name: Create certs folder
+      ansible.builtin.command:
+        cmd: mkdir -p certs
+    - name: Create self-signed certificate
+      ansible.builtin.command:
+        cmd: openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout certs/cerfificate.key -out certs/certificate.crt -subj "/CN={{ nginx_domain }}"
+    - name: Allow exposing priveleged ports to normal user
+      become: true
+      ansible.builtin.shell:
+        cmd: setcap cap_net_bind_service=ep $(which rootlesskit)
+    - name: Restart rootless Docker
+      ansible.builtin.command:
+        cmd: systemctl --user restart docker
+    - name: Deploy Passbolt
+      ansible.builtin.command:
+        cmd: docker compose -f docker-compose-passbolt.yml up -d
+    - name: Copy wait-until script
+      ansible.builtin.template:
+        src: scripts/wait-until-passbolt.sh.j2
+        dest: wait-until.sh
+        mode: '0755'
+    - name: Wait until Passbolt fully deployed
+      ansible.builtin.command:
+        cmd: ./wait-until.sh
+    - name: Remove prevoious script
+      ansible.builtin.command:
+        cmd: rm wait-until.sh
+    - name: Create first user
+      ansible.builtin.shell:
+        cmd: docker compose -f docker-compose-passbolt.yml exec -u www-data passbolt /usr/share/php/passbolt/bin/cake passbolt register_user -u {{ account_mail }} -f "{{ account_first_name }}" -l "{{ account_last_name }}" -r admin
+...

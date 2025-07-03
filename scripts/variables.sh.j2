@@ -1,0 +1,19 @@
+#!/bin/bash
+
+mysql_username={{ mysql_username }}
+mysql_password={{ mysql_password }}
+mysql_dbname={{ mysql_dbname }}
+nxginx_domain={{ nginx_domain }}
+SSL_cert_path={{ SSL_cert_path }}
+SSL_key_path={{ SSL_key_path }}
+
+echo passbolt-ce-server passbolt/mysql-configuration boolean true | debconf-set-selections
+echo passbolt-ce-server passbolt/mysql-passbolt-username string ${mysql_username} | debconf-set-selections
+echo passbolt-ce-server passbolt/mysql-passbolt-password password ${mysql_password} | debconf-set-selections
+echo passbolt-ce-server passbolt/mysql-passbolt-password-repeat password ${mysql_password} | debconf-set-selections
+echo passbolt-ce-server passbolt/mysql-passbolt-dbname string ${mysql_dbname} | debconf-set-selections
+echo passbolt-ce-server passbolt/nginx-configuration boolean true | debconf-set-selections
+echo passbolt-ce-server passbolt/nginx-configuration-three-choices select manual | debconf-set-selections
+echo passbolt-ce-server passbolt/nginx-domain string ${nxginx_domain} | debconf-set-selections
+echo passbolt-ce-server passbolt/nginx-certificate-file string ${SSL_cert_path} | debconf-set-selections
+echo passbolt-ce-server passbolt/nginx-certificate-key-file string ${SSL_key_path} | debconf-set-selections

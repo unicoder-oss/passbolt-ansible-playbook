@@ -1,0 +1,13 @@
+#!/bin/bash
+
+URL="https://{{ nginx_domain }}/healthcheck/status"
+INTERVAL=5
+
+while true; do
+    RESPONSE_CODE=$(curl -k -s -o /dev/null -w "%{http_code}" "$URL")
+    if [[ RESPONSE_CODE -eq 200 ]]; then
+        break
+    else
+        sleep "$INTERVAL"
+    fi
+done
