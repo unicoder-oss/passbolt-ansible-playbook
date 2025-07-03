@@ -35,8 +35,8 @@ services:
     volumes:
       - gpg_volume:/etc/passbolt/gpg
       - jwt_volume:/etc/passbolt/jwt
-      - {{ SSL_docker_cert_path }}:/etc/passbolt/certs/certificate.crt
-      - {{ SSL_docker_key_path }}:/etc/passbolt/certs/certificate.key
+      - {{ SSL_docker_cert_path }}:/etc/passbolt/certs/certificate.crt:ro
+      - {{ SSL_docker_key_path }}:/etc/passbolt/certs/certificate.key:ro
     command:
       [
         "/usr/bin/wait-for.sh",
