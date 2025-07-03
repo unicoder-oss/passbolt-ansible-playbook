@@ -23,8 +23,8 @@
       ansible.builtin.command:
         cmd: mkdir -p certs
     - name: Create self-signed certificate
-      ansible.builtin.command:
-        cmd: openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout certs/cerfificate.key -out certs/certificate.crt -subj "/CN={{ nginx_domain }}"
+      ansible.builtin.shell:
+        cmd: openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout {{ SSL_docker_key_path }} -out {{ SSL_docker_cert_path }} -subj "/CN={{ nginx_domain }}" && chmod +r {{ SSL_docker_key_path }} && chmod +r {{ SSL_docker_cert_path }}
     - name: Allow exposing priveleged ports to normal user
       become: true
       ansible.builtin.shell:

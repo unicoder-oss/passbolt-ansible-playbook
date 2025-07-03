@@ -25,8 +25,10 @@ The second playbook installs Docker, activates rootless mode and deploys Passbol
 |`mysql_password`|string|The password of the MySQL user to be created and used by the Passbolt|
 |`mysql_dbname`|strting|The name of the MySQL database to be created and used by the Passbolt|
 |`nginx_domain`|string|The domain name or IP address for which the SSL-certificate will be created|
-|`SSL_cert_path`|string|Path where the public certificate file will be created **(Ignored in the Docker variant. It will create the certificate file in ~/certs/certificate.crt)**|
-|`SSL_key_path`|string|Path where the private key of the certificate will be created **(Ignored in the Docker variant. It will create the private key file in ~/certs/certificate.key)**|
+|`SSL_cert_path`|string|Path where the public certificate file will be created **(Ignored in the Docker variant. It will use `SSL_docker_cert_path` variable)**|
+|`SSL_key_path`|string|Path where the private key of the certificate will be created **(Ignored in the Docker variant. It will use `SSL_docker_key_path` variable)**|
+|`SSL_docker_cert_path`|string|Path where the public certificate file will be created and used by the Docker variant|
+|`SSL_docker_key_path`|string|Path where the private key of the certificate will be created and used by the Docker variant|
 |`GPG_name`|string|Username for the server's OpenPGP key|
 |`GPG_mail`|string|Email for the server's OpenPGP key|
 |`SMTP_sender_name`|string|Name of the sender of emails from the server|
